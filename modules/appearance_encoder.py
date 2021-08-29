@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 import torch.nn.functional as F
-from modules.util import ResBlock, DownBlock
+from modules.utils import ResBlock, DownBlock
 
 
 class ApearanceEncoder(nn.Module):

@@ -2,7 +2,7 @@ import pdb
 import torch
 from modules.appearance_encoder import ApearanceEncoder
 from .unitest_setup import SetupTestCase
-from modules.util import get_face_keypoint, get_multi_sample_grid, warp_multi_feature_volume, make_coordinate_grid
+from modules.utils import get_face_keypoint, get_multi_sample_grid, warp_multi_feature_volume, make_coordinate_grid
 import torch.nn.functional as F
 from modules.occlusion_estimator import OcclusionEstimator
 

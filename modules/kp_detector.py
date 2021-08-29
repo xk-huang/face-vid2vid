@@ -5,7 +5,7 @@ from torch import feature_dropout, nn
 import torch
 import torch.nn.functional as F
 
-from modules.util import UNetDecoder, UNetEncoder, AntiAliasInterpolation2d, make_coordinate_grid
+from modules.utils import UNetDecoder, UNetEncoder, AntiAliasInterpolation2d, make_coordinate_grid
 
 
 class CanonicalKPDetector(nn.Module):

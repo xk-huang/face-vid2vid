@@ -2,19 +2,24 @@ import pdb
 import torch
 from modules.appearance_encoder import ApearanceEncoder
 from .unitest_setup import SetupTestCase
-from modules.utils import get_face_keypoint, get_multi_sample_grid, warp_multi_feature_volume, make_coordinate_grid
+from modules.utils import (get_face_keypoint, get_multi_sample_grid,
+                           warp_multi_feature_volume, make_coordinate_grid, ImagePyramide)
 import torch.nn.functional as F
 from modules.occlusion_estimator import OcclusionEstimator
 from modules.generator import OcclAwareGenerator
+from modules.discriminator import MultiScaleDiscriminator
 
 
-class TestGen(SetupTestCase):
-    def test_gen(self):
+class TestDisc(SetupTestCase):
+    def test_disc(self):
         config = self.config['model_params']
         n, num_kp = 2, config['generator_params']['num_kp']
 
         occ_net = OcclusionEstimator(**config['occl_estimator_params'])
         gen_net = OcclAwareGenerator(**config['generator_params'])
+        disc_net = MultiScaleDiscriminator(**config["disciminator_params"])
+        imgpy = ImagePyramide(
+            config["disciminator_params"]['scales'], config["disciminator_params"]['num_channels'])
 
         kp = torch.randn(n, num_kp, 3)
         rot = torch.randn(n, 3, 3)
@@ -36,6 +41,9 @@ class TestGen(SetupTestCase):
         rgb = gen_net(features, face_kp, face_kp, rot, rot, **out)
         self.assertTrue(torch.all(rgb < 1.0))
         self.assertTrue(torch.all(0.0 < rgb))
+
+        rgbs = imgpy(rgb)
+        disc_out = disc_net(rgbs)
 
         # import pdb
         # pdb.set_trace()

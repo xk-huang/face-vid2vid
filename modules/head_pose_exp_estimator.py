@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modules.util import ResBottleneck, AntiAliasInterpolation2d
+from modules.utils import ResBottleneck, AntiAliasInterpolation2d
 import torch.nn.functional as F
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 from torchvision.models import resnet50

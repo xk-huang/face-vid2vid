@@ -4,12 +4,12 @@ import torch
 from torch.functional import align_tensors
 import torch.nn as nn
 import torch.nn.functional as F
-from modules.util import ResBlock, UpBlock, get_multi_sample_grid, warp_multi_feature_volume
+from modules.utils import ResBlock, UpBlock, get_multi_sample_grid, warp_multi_feature_volume
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
 
 
 class OcclAwareGenerator(nn.Module):
-    def __init__(self, depth=16, num_features_ch=32, num_res_blocks=6, num_up_blocks=2, num_kp=20, block_expansion=64, max_features=1024) -> None:
+    def __init__(self, depth=16, num_features_ch=32, num_res_blocks=6, num_up_blocks=2, num_kp=20, block_expansion=64, max_features=1024, sn=False) -> None:
         super(OcclAwareGenerator, self).__init__()
 
         self.num_kp = num_kp
@@ -18,24 +18,30 @@ class OcclAwareGenerator(nn.Module):
         interm_ch = min(block_expansion * (num_up_blocks ** 2), max_features)
         self.conv1 = nn.Conv2d(depth * num_features_ch,
                                interm_ch, 3, padding=1)
+        if sn:
+            self.conv1 = nn.utils.spectral_norm(self.conv1)
         self.norm1 = BatchNorm2d(interm_ch)
         self.lrelu1 = nn.LeakyReLU(0.2)
         self.conv2 = nn.Conv2d(interm_ch, interm_ch, 1)
+        if sn:
+            self.conv2 = nn.utils.spectral_norm(self.conv2)
 
         res_blocks = []
         for i in range(num_res_blocks):
-            res_blocks.append(ResBlock(interm_ch))
+            res_blocks.append(ResBlock(interm_ch, sn=sn))
         self.res_blocks = nn.Sequential(*res_blocks)
 
         up_blocks = []
         in_ch = interm_ch
         for i in range(num_up_blocks)[::-1]:
             out_ch = block_expansion * (2 ** i)
-            up_blocks.append(UpBlock(in_ch, out_ch))
+            up_blocks.append(UpBlock(in_ch, out_ch, sn=sn))
             in_ch = out_ch
         self.up_blocks = nn.Sequential(*up_blocks)
 
         self.rgb = nn.Conv2d(in_ch, 3, 7, padding=3)
+        if sn:
+            self.rgb = nn.utils.spectral_norm(self.rgb)
 
     def forward(self, features, source_keypoint, target_keypoint, source_rot, target_rot, flow_3d_mask, feature_2d_mask):
         # grids (n, num_kp + 1, d, h, w, 3)

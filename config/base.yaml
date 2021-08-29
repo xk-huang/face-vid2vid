@@ -38,3 +38,11 @@ model_params:
     num_kp: 5
     block_expansion: 16
     max_features: 1024
+    sn: True
+  disciminator_params:
+    scales: [1, 0.5]
+    block_expansion: 32
+    max_features: 512
+    num_blocks: 1
+    num_channels: 3
+    sn: True

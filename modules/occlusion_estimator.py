@@ -2,7 +2,7 @@ import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from modules.util import UNetEncoder, UNetDecoder, get_multi_sample_grid, warp_multi_feature_volume
+from modules.utils import UNetEncoder, UNetDecoder, get_multi_sample_grid, warp_multi_feature_volume
 
 
 class OcclusionEstimator(nn.Module):
