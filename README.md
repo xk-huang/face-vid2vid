@@ -8,27 +8,32 @@ paper: One-Shot Free-View Neural Talking-Head Synthesis for Video Conferencing, 
 
 - [ ] Modules
 
-  1. 3d keypoint estimator
-     1. facial canonical keypoint estimator
-     2. Head pose & exp deformation estimator
-  2. 3d flow estimator
-     +occlusion map
-  3. generator
-     appearnce estimator & generator
-  4. discriminator
+  - [ ] 3d keypoint estimator
+    - [ ] facial canonical keypoint estimator
+    - [ ] Head pose & exp deformation estimator
+          eular2rot
+  - [ ] 3d flow estimator
+    - [ ] appearance estimator
+    - [ ] 3d flow occlusion map + feature occlusion map
+  - [ ] generator
+    - [ ] appearnce estimator
+    - [ ] 3d flow occlusion map + feature occlusion map
+    - [ ] feature+occlusion generator
+  - [ ] discriminator
+    - [ ] multi-scale discriminator
 
 - [ ] runlib
-  1.  train
-  2.  recontruction
-  3.  animation
+  - [ ] train
+  - [ ] recontruction
+  - [ ] animation
+  - [ ] dataset
 - [ ] data
-  1. a few HD 1024+ voxceleb
-  2. Head Pose estimation
-     eular2rot
-  3. full data
+  - [ ] a few HD 1024+ voxceleb
+  - [ ] Head Pose estimation
+  - [ ] full data
 
 ## PLAN
 
-1. sample data & full data
-2. modules
-3. runlib
+- [ ] sample data & full data
+- [ ] modules
+- [ ] runlib
