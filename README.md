@@ -21,6 +21,12 @@ paper: One-Shot Free-View Neural Talking-Head Synthesis for Video Conferencing, 
     - [ ] feature+occlusion generator
   - [ ] discriminator
     - [ ] multi-scale discriminator
+  - [ ] model
+    - [ ] 3d keypoint estimator
+    - [ ] 3d flow estimator
+    - [ ] train_gen_model
+    - [ ] train_disc_model
+    - [ ] eval_gen_model
 
 - [ ] runlib
   - [ ] train
