@@ -1,18 +1,20 @@
+import pdb
 from ssl import HAS_ECDH
 import torch
 import torch.nn as nn
-from modules.util import DownBlock, UpBlock, UNetEncoder, UNetDecoder
+from torch.nn.functional import pad
+from modules.util import DownBlock, UpBlock, UNetEncoder, UNetDecoder, get_face_keypoint, get_multi_sample_grid, warp_multi_feature_volume
 
 
 class OcclusionEstimator(nn.Module):
-    """
+    r"""
     flow occlusion estimator
     input:
         features (n, c, d, h, w)
-        source_keypoint
-        target_keypoint
-        source_rot
-        target_rot
+        source_keypoint (n, num_kp, 3)
+        target_keypoint (n, num_kp, 3)
+        source_rot (n, 3, 3)
+        target_rot (n, 3, 3)
     intermediate network input:
         (num_kp + 1) grid (n, num_kp + 1, d, h, w, 3)
         (num_kp + 1) warped-features, 1 means no warping (n, num_kp + 1, c, d, h, w)
@@ -21,7 +23,7 @@ class OcclusionEstimator(nn.Module):
         2d occlusion mask: (n, 1, h , w), sigmoid
     """
 
-    def __init__(self, compressed_in_features=5, block_expansion=32, num_blocks=5, max_features=1024, num_kp=20, depth=16, use_skip=False) -> None:
+    def __init__(self, features_ch=32, compressed_in_features=5, block_expansion=32, num_blocks=5, max_features=1024, num_kp=20, depth=16, use_skip=False) -> None:
         super(OcclusionEstimator, self).__init__()
 
         self.num_kp = num_kp
@@ -30,7 +32,7 @@ class OcclusionEstimator(nn.Module):
         self.compressed_in_features = compressed_in_features
 
         self.compress_input = nn.Conv3d(
-            self.in_features, compressed_in_features, 1)
+            features_ch, compressed_in_features, 1)
 
         self.encoder = UNetEncoder(
             True, block_expansion, self.in_features, num_blocks, max_features)
@@ -49,9 +51,28 @@ class OcclusionEstimator(nn.Module):
         # final feature should be (N, in_ch, D, H, W)
         # need a warper func (N, in_ch, D, H, W) -> (N, num_kp + 1, in_ch, D, H, W)
 
-        self.flow_3d_mask_layer = nn.Conv3d(self.unet_out_ch, num_kp + 1)
+        self.flow_3d_mask_layer = nn.Conv3d(
+            self.unet_out_ch, num_kp + 1, 7, padding=3)
         self.feature_2d_mask_layer = nn.Conv2d(
             depth * self.unet_out_ch, 1, 7, padding=3)
 
-    def forward(self, x):
-        pass
+    def forward(self, features, source_keypoint, target_keypoint, source_rot, target_rot):
+        compressed_features = self.compress_input(features)
+        n, c, d, h, w = compressed_features.shape
+        grids = get_multi_sample_grid(
+            compressed_features, source_keypoint, target_keypoint, source_rot, target_rot)
+        warped_features = warp_multi_feature_volume(compressed_features, grids)
+        warped_features = warped_features.reshape(n, -1, d, h, w)
+        print("[test] start warping")
+        out_features = self.encoder(warped_features)
+        out_features = self.decoder(out_features)
+        cat_features = torch.cat([warped_features, out_features], dim=1)
+
+        flow_3d_mask = self.flow_3d_mask_layer(cat_features)
+        feature_2d_mask = self.feature_2d_mask_layer(
+            cat_features.view(n, -1, h, w))
+
+        return {
+            "flow_3d_mask": flow_3d_mask,
+            "feature_2d_mask": feature_2d_mask
+        }

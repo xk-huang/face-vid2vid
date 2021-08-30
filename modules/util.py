@@ -21,7 +21,7 @@ def make_coordinate_grid(spatial_size, dtype):
     """
     spatial_size = [
         None, *spatial_size] if len(spatial_size) == 2 else spatial_size
-    print(f"[test] spatial_size {spatial_size}")
+    print(f"[test] coord spatial_size {spatial_size}")
     d, h, w = spatial_size
     x = torch.arange(w).type(dtype)
     y = torch.arange(h).type(dtype)
@@ -54,10 +54,11 @@ class DownBlock(nn.Module):
 
         conv_func = nn.Conv3d if use_3d else nn.Conv2d
         norm_func = BatchNorm3d if use_3d else BatchNorm2d
+        pool_func = nn.AvgPool3d if use_3d else nn.AvgPool2d
         self.conv = conv_func(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = norm_func(out_features, affine=True)
-        self.pool = nn.AvgPool2d(kernel_size=(2, 2))
+        self.pool = pool_func(kernel_size=2)
 
     def forward(self, x):
         out = self.conv(x)
@@ -180,6 +181,7 @@ class UNetEncoder(nn.Module):
 
     def forward(self, x):
         outs = [x]
+        print("[test] x shape", x.shape)
         for down_block in self.down_blocks:
             outs.append(down_block(outs[-1]))
             print("[test] down_block", outs[-1].shape)

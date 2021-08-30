@@ -21,3 +21,12 @@ model_params:
     num_rot_bins: 66
     half_range: 99
     scale_factor: 0.5
+  occl_estimator_params:
+    compressed_in_features: 5
+    block_expansion: 4
+    num_blocks: 2
+    features_ch: 4
+    max_features: 1024
+    num_kp: 5
+    depth: 8
+    use_skip: False
