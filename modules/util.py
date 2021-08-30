@@ -1,3 +1,5 @@
+from numpy.lib.utils import source
+from torch.functional import align_tensors
 import torchvision.models.resnet
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 from torch import nn
@@ -10,6 +12,13 @@ print("[WARNING] USE BN with torch.nn.dataparallel, which is quite slow.\nre-imp
 
 
 def make_coordinate_grid(spatial_size, dtype):
+    """
+    input:
+        spatial_size: 2d or 3d
+        dtype
+    output:
+        *spatial_size, 3
+    """
     spatial_size = [
         None, *spatial_size] if len(spatial_size) == 2 else spatial_size
     print(f"[test] spatial_size {spatial_size}")
@@ -261,3 +270,73 @@ class AntiAliasInterpolation2d(nn.Module):
         out = out[:, :, ::self.int_inv_scale, ::self.int_inv_scale]
 
         return out
+
+
+def warp_multi_feature_volume(features, grid):
+    '''
+    input:
+        features (n, c, d, h, w)
+        grid (n, num_kp + 1, d, h, w, 3)
+    output:
+        warped features (n, num_kp + 1, c, d, h, w)
+    '''
+    _, _, d, h, w = features.shape
+    _, _, _d, _h, _w, _ = grid.shape
+    if d != _d or h != _h or w != _w:
+        grid = F.interpolate(
+            grid, (d, h, w), mode='trilinear', align_corners=True)
+    warped_features = []
+    for i in range(grid.shape[1]):
+        warped_features.append(F.grid_sample(
+            features, grid[:, i], align_corners=True))
+    return torch.stack(warped_features).transpose(0, 1)
+
+
+def get_multi_sample_grid(features, source_keypoint, target_keypoint, source_rot, target_rot):
+    """
+    flow occlusion estimator
+    input:
+        features (n, c, d, h, w)
+        source_keypoint (n, num_kp, 3)
+        target_keypoint (n, num_kp, 3)
+        source_rot (n, 3, 3)
+        target_rot (n, 3, 3)
+    output:
+        grid: (n, num_kp, d, h, w, 3)
+    """
+    n, num_kp, _ = source_keypoint.shape
+    d, h, w = features.shape[-3:]
+    identity_grid = make_coordinate_grid(
+        features.shape[-3:], features.type())  # d, h, w, 3
+    identity_grid = identity_grid.view(1, 1, *identity_grid.shape)
+    source_keypoint = source_keypoint.view(n, num_kp, 1, 1, 1, 3)
+    target_keypoint = target_keypoint.view(n, num_kp, 1, 1, 1, 3)
+    source_rot = source_rot.view(
+        n, 1, 1, 1, 1, 3, 3).expand(n, num_kp, d, h, w, 3, 3)
+    target_rot = target_rot.view(
+        n, 1, 1, 1, 1, 3, 3).expand(n, num_kp, d, h, w, 3, 3)
+    grid = identity_grid - target_keypoint
+
+    grid = torch.matmul(torch.inverse(target_rot), grid.unsqueeze(-1))
+    grid = torch.matmul(source_rot, grid)  # n, num_kp, d, h, w, 3
+    grid = grid.squeeze(-1) + source_keypoint
+
+    return torch.cat([grid, identity_grid.expand(n, 1, d, h, w, 3)], dim=1)
+
+
+def get_face_keypoint(kp, rot, trans, exp):
+    """
+    input:
+        kp: (n, num_kp, 3)
+        rot (n, 3, 3)
+        trans (n, 3)
+        exp (n, num_kp, 3)
+    output:
+        facial kp (n, num_kp, 3)
+    """
+    n, num_kp, _ = kp.shape
+    out = kp + trans.view(n, 1, -1)
+    out = torch.matmul(rot.unsqueeze(1).expand(
+        n, num_kp, 3, 3), out.unsqueeze(-1))  # n, num_kp, 3
+    out = out.squeeze(-1) + exp
+    return out

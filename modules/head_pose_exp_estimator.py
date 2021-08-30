@@ -20,7 +20,7 @@ class HeadPoseExpEstimator(nn.Module):
                 'mat': mat (n, 3, 3)
             },
             'trans': trans (n, 3)
-            'exp': exp (n, num_kp * 3)
+            'exp': exp (n, num_kp, 3)
         }
     """
 
@@ -122,7 +122,7 @@ class HeadPoseExpEstimator(nn.Module):
         rot_mat = self.get_rot_mat(rot_eulers)
 
         trans = self.trans(x)
-        exp = self.exp(x)
+        exp = self.exp(x).view()
 
         return {
             'rot': {
@@ -131,5 +131,5 @@ class HeadPoseExpEstimator(nn.Module):
                 'mat': rot_mat
             },
             'trans': trans,
-            'exp': exp
+            'exp': exp.view(exp.shape[0], -1, 3)
         }

@@ -15,7 +15,7 @@ class CanonicalKPDetector(nn.Module):
         - x: (n,c,h,w)
     output:
         - out: dict{
-            "keypoint": kp: (n, num_kp)
+            "keypoint": kp: (n, num_kp, 3)
             (optional) "jacobian": jacobian: (n, num_kp, 2, 2) or (n, num_kp, 3, 3)
         }
 
