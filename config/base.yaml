@@ -15,3 +15,8 @@ model_params:
     num_res_blocks: 3
     num_down_blocks: 2
     block_expansion: 32
+  hpe_estimator_params:
+    pretrained: False
+    num_kp: 5
+    num_rot_bins: 66
+    half_range: 99
