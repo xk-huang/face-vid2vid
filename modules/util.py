@@ -1,5 +1,5 @@
 import torchvision.models.resnet
-from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
+from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 from torch import nn
 
 import torch.nn.functional as F
@@ -44,7 +44,7 @@ class DownBlock(nn.Module):
         super(DownBlock, self).__init__()
 
         conv_func = nn.Conv3d if use_3d else nn.Conv2d
-        norm_func = nn.BatchNorm3d if use_3d else nn.BatchNorm2d
+        norm_func = BatchNorm3d if use_3d else BatchNorm2d
         self.conv = conv_func(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = norm_func(out_features, affine=True)
@@ -67,7 +67,7 @@ class UpBlock(nn.Module):
         super(UpBlock, self).__init__()
 
         conv_func = nn.Conv3d if use_3d else nn.Conv2d
-        norm_func = nn.BatchNorm3d if use_3d else nn.BatchNorm2d
+        norm_func = BatchNorm3d if use_3d else BatchNorm2d
         self.conv = conv_func(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = norm_func(out_features, affine=True)
@@ -89,7 +89,7 @@ class ResBlock(nn.Module):
         super(ResBlock, self).__init__()
 
         conv_func = nn.Conv3d if use_3d else nn.Conv2d
-        norm_func = nn.BatchNorm3d if use_3d else nn.BatchNorm2d
+        norm_func = BatchNorm3d if use_3d else BatchNorm2d
 
         self.conv1 = conv_func(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
                                padding=padding)
@@ -119,7 +119,7 @@ class ResBottleneck(nn.Module):
 
         self.bottleneck_ch = int(in_features * bottleneck_scale)
         conv_func = nn.Conv3d if use_3d else nn.Conv2d
-        norm_func = nn.BatchNorm3d if use_3d else nn.BatchNorm2d
+        norm_func = BatchNorm3d if use_3d else BatchNorm2d
 
         self.use_down_sample = use_down_sample
         self.conv1 = conv_func(in_channels=in_features,

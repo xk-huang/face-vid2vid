@@ -1,12 +1,17 @@
 model_params:
-  common_params:
-    num_kp: 5
-    num_in_channels: 3
-    # estimate_jacobian: True
-    depth: 3
   kp_detector_params:
+    num_kp: 5
+    # estimate_jacobian: True
+    num_in_channels: 3
+    depth: 3
     temperature: 0.1
     block_expansion: 4
     max_features: 1024
     scale_factor: 1
     num_blocks: 2
+  appearance_encoder_params:
+    depth: 3
+    in_features: 3
+    num_res_blocks: 3
+    num_down_blocks: 2
+    block_expansion: 32
