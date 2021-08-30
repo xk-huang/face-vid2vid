@@ -7,7 +7,7 @@ model_params:
     temperature: 0.1
     block_expansion: 4
     max_features: 1024
-    scale_factor: 1
+    scale_factor: 0.5
     num_blocks: 2
   appearance_encoder_params:
     depth: 3
@@ -20,3 +20,4 @@ model_params:
     num_kp: 5
     num_rot_bins: 66
     half_range: 99
+    scale_factor: 0.5

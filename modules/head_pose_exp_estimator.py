@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from modules.util import ResBottleneck
+from modules.util import ResBottleneck, AntiAliasInterpolation2d
 import torch.nn.functional as F
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 from torchvision.models import resnet50
@@ -24,7 +24,7 @@ class HeadPoseExpEstimator(nn.Module):
         }
     """
 
-    def __init__(self, pretrained=False, num_kp=5, num_rot_bins=66, half_range=99):
+    def __init__(self, pretrained=False, num_kp=5, num_rot_bins=66, half_range=99, scale_factor=1):
         super(HeadPoseExpEstimator, self).__init__()
 
         self.register_buffer('idx_tensor', torch.arange(num_rot_bins).float())
@@ -44,6 +44,11 @@ class HeadPoseExpEstimator(nn.Module):
 
         self.trans = nn.Linear(in_ch, 3)
         self.exp = nn.Linear(in_ch, num_kp * 3)
+
+        self.scale_factor = scale_factor
+        if scale_factor != 1:
+            self.down = AntiAliasInterpolation2d(
+                self.net.conv1.weight.shape[1], scale_factor)
 
     # def get_values_dict(self, rot_logits):
     #     return {
@@ -91,6 +96,8 @@ class HeadPoseExpEstimator(nn.Module):
         return torch.bmm(rot_x, torch.bmm(rot_y, rot_z))
 
     def forward(self, x):
+        if self.scale_factor != 1:
+            x = self.down(x)
         x = self.net.conv1(x)
         x = self.net.bn1(x)
         x = self.net.relu(x)

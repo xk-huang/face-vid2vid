@@ -8,7 +8,8 @@ class TestHPE(SetupTestCase):
         config = self.config['model_params']['hpe_estimator_params']
         net = HeadPoseExpEstimator(**config)
 
-        data = torch.ones(2, 3, 32, 32)
+        data = torch.ones(
+            2, 3, int(32 / config['scale_factor']), int(32 / config['scale_factor']))
         out = net(data)
         num_rot_bins = config['num_rot_bins']
         num_kp = config['num_kp']
