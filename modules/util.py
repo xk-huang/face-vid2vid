@@ -193,7 +193,10 @@ class UNetDecoder(nn.Module):
             up_blocks.append(UpBlock(in_ch, out_ch, use_3d=use_3d))
         self.up_blocks = nn.ModuleList(up_blocks)
 
-        self.num_out_ch = (block_expansion, in_features)
+        if use_skip:
+            self.num_out_ch = (block_expansion + in_features)
+        else:
+            self.num_out_ch = block_expansion
 
     def forward(self, x):
         if not isinstance(x, List):
