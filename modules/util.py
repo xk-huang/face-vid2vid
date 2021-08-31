@@ -304,7 +304,7 @@ def get_multi_sample_grid(features, source_keypoint, target_keypoint, source_rot
         source_rot (n, 3, 3)
         target_rot (n, 3, 3)
     output:
-        grid: (n, num_kp, d, h, w, 3)
+        grid: (n, num_kp + 1, d, h, w, 3)
     """
     n, num_kp, _ = source_keypoint.shape
     d, h, w = features.shape[-3:]

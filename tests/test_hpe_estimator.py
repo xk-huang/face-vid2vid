@@ -27,5 +27,5 @@ class TestHPE(SetupTestCase):
             out['trans'].shape == (n, 3)
         )
         self.assertTrue(
-            out['exp'].shape == (n, 3 * num_kp)
+            out['exp'].shape == (n, num_kp, 3)
         )

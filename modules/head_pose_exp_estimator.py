@@ -122,7 +122,7 @@ class HeadPoseExpEstimator(nn.Module):
         rot_mat = self.get_rot_mat(rot_eulers)
 
         trans = self.trans(x)
-        exp = self.exp(x).view()
+        exp = self.exp(x)
 
         return {
             'rot': {

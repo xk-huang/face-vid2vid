@@ -35,7 +35,7 @@ class CanonicalKPDetector(nn.Module):
             True, block_expansion, num_in_channels, num_blocks, max_features, use_skip=False)
 
         self.kp = nn.Conv3d(
-            self.decoder.num_out_ch[0], num_kp, 7, padding=padding)
+            self.decoder.num_out_ch, num_kp, 7, padding=padding)
         self.jacobian = None
 
         self.temperature = temperature

@@ -1,9 +1,8 @@
 import pdb
-from ssl import HAS_ECDH
 import torch
 import torch.nn as nn
-from torch.nn.functional import pad
-from modules.util import DownBlock, UpBlock, UNetEncoder, UNetDecoder, get_face_keypoint, get_multi_sample_grid, warp_multi_feature_volume
+import torch.nn.functional as F
+from modules.util import UNetEncoder, UNetDecoder, get_multi_sample_grid, warp_multi_feature_volume
 
 
 class OcclusionEstimator(nn.Module):
@@ -23,7 +22,7 @@ class OcclusionEstimator(nn.Module):
         2d occlusion mask: (n, 1, h , w), sigmoid
     """
 
-    def __init__(self, features_ch=32, compressed_in_features=5, block_expansion=32, num_blocks=5, max_features=1024, num_kp=20, depth=16, use_skip=False) -> None:
+    def __init__(self, num_features_ch=32, compressed_in_features=5, block_expansion=32, num_blocks=5, max_features=1024, num_kp=20, depth=16, use_skip=False) -> None:
         super(OcclusionEstimator, self).__init__()
 
         self.num_kp = num_kp
@@ -32,7 +31,7 @@ class OcclusionEstimator(nn.Module):
         self.compressed_in_features = compressed_in_features
 
         self.compress_input = nn.Conv3d(
-            features_ch, compressed_in_features, 1)
+            num_features_ch, compressed_in_features, 1)
 
         self.encoder = UNetEncoder(
             True, block_expansion, self.in_features, num_blocks, max_features)
@@ -69,8 +68,14 @@ class OcclusionEstimator(nn.Module):
         cat_features = torch.cat([warped_features, out_features], dim=1)
 
         flow_3d_mask = self.flow_3d_mask_layer(cat_features)
+        num_kp = flow_3d_mask.shape[1]
+        flow_3d_mask = flow_3d_mask.view(n, num_kp, -1)
+        flow_3d_mask = F.softmax(flow_3d_mask, -1)
+        flow_3d_mask = flow_3d_mask.view(n, num_kp, d, h, w)
+
         feature_2d_mask = self.feature_2d_mask_layer(
             cat_features.view(n, -1, h, w))
+        feature_2d_mask = torch.sigmoid(feature_2d_mask)
 
         return {
             "flow_3d_mask": flow_3d_mask,

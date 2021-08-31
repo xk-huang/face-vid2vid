@@ -25,8 +25,16 @@ model_params:
     compressed_in_features: 5
     block_expansion: 4
     num_blocks: 2
-    features_ch: 4
+    num_features_ch: 4
     max_features: 1024
     num_kp: 5
     depth: 8
     use_skip: False
+  generator_params:
+    depth: 8
+    num_features_ch: 4
+    num_res_blocks: 2
+    num_up_blocks: 2
+    num_kp: 5
+    block_expansion: 16
+    max_features: 1024
