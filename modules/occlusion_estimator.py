@@ -2,7 +2,7 @@ import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from modules.utils import UNetEncoder, UNetDecoder, get_multi_sample_grid, warp_multi_feature_volume
+from modules.utils import UNetEncoder, UNetDecoder, get_multi_sample_grid, kp2gaussian, warp_multi_feature_volume
 
 
 class OcclusionEstimator(nn.Module):
@@ -22,13 +22,14 @@ class OcclusionEstimator(nn.Module):
         2d occlusion mask: (n, 1, h , w), sigmoid
     """
 
-    def __init__(self, num_features_ch=32, compressed_in_features=5, block_expansion=32, num_blocks=5, max_features=1024, num_kp=20, depth=16, use_skip=False) -> None:
+    def __init__(self, num_features_ch=32, compressed_in_features=5, block_expansion=32, num_blocks=5, max_features=1024, num_kp=20, depth=16, use_skip=False, kp_variance=0.01) -> None:
         super(OcclusionEstimator, self).__init__()
 
         self.num_kp = num_kp
         self.depth = depth
-        self.in_features = compressed_in_features * (num_kp + 1)
+        self.in_features = (1 + compressed_in_features) * (num_kp + 1)
         self.compressed_in_features = compressed_in_features
+        self.kp_variance = kp_variance
 
         self.compress_input = nn.Conv3d(
             num_features_ch, compressed_in_features, 1)
@@ -38,8 +39,8 @@ class OcclusionEstimator(nn.Module):
         self.decoder = UNetDecoder(
             True, block_expansion, self.in_features, num_blocks, max_features, use_skip=use_skip)
 
-        self.unet_out_ch = self.decoder.num_out_ch + \
-            (num_kp + 1) * compressed_in_features
+        # num_kp warped features, identity warped feature, kp headmap
+        self.unet_out_ch = self.decoder.num_out_ch + self.in_features
 
         # both input feature volume is warped num_kp times, + itself with no warping
         # feature volumes:
@@ -60,8 +61,15 @@ class OcclusionEstimator(nn.Module):
         n, c, d, h, w = compressed_features.shape
         grids = get_multi_sample_grid(
             compressed_features, source_keypoint, target_keypoint, source_rot, target_rot)
+        # (n, num_kp + 1, c, d, h, w)
         warped_features = warp_multi_feature_volume(compressed_features, grids)
+        # (n, num_kp + 1, 1, d, h, w)
+        heatmap = self.create_heatmap_representation(
+            features, source_keypoint, target_keypoint)
+        warped_features = torch.cat([warped_features, heatmap], dim=2)
+
         warped_features = warped_features.reshape(n, -1, d, h, w)
+
         print("[test] start warping")
         out_features = self.encoder(warped_features)
         out_features = self.decoder(out_features)
@@ -81,3 +89,18 @@ class OcclusionEstimator(nn.Module):
             "flow_3d_mask": flow_3d_mask,
             "feature_2d_mask": feature_2d_mask
         }
+
+    def create_heatmap_representation(self, features, source_keypoint, target_keypoint):
+        n, c, d, h, w = features.shape
+        spatial_size = features.shape[-3:]
+        heatmap_target = kp2gaussian(
+            target_keypoint, spatial_size, self.kp_variance)
+        heatmap_source = kp2gaussian(
+            source_keypoint, spatial_size, self.kp_variance)
+        heatmap = heatmap_target - heatmap_source
+        # (n, num_kp, d, h, w)
+        zeros = torch.zeros(n, 1, *spatial_size)
+        heatmap = torch.cat([heatmap, zeros], dim=1)
+        heatmap = heatmap.unsqueeze(2)
+        return heatmap
+        # (n, num_kp + 1, 1, d, h, w)

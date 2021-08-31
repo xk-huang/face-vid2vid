@@ -11,6 +11,29 @@ from typing import List
 print("[WARNING] USE BN with torch.nn.dataparallel, which is quite slow.\nre-implementation required.")
 
 
+def kp2gaussian(kp, spatial_size, kp_varirance=0.01):
+    """
+    output:
+        out (n, num_kp, d, h, w) 
+    """
+    grid = make_coordinate_grid(spatial_size, kp.type())
+    num_leading_dims = len(kp.shape) - 1
+    grid_dims = (1,) * num_leading_dims + grid.shape
+    grid = grid.view(*grid_dims)
+    kp_repeat = kp.shape[:num_leading_dims] + (1, 1, 1, 1)
+    grid = grid.repeat(*kp_repeat)  # (n, num_kp, d, h, w, 3)
+
+    # kp (n, num_kp, 3)
+    kp_dims = kp.shape[:num_leading_dims] + (1, 1, 1, 3)
+    kp = kp.view(*kp_dims)  # (1, 1, 1, 1, 1 ,3)
+
+    kp_sub = grid - kp
+    # (n, num_kp, d, h, w)
+    out = torch.exp(-0.5 * (kp_sub ** 2).sum(-1) / kp_varirance)
+
+    return out
+
+
 def make_coordinate_grid(spatial_size, dtype):
     """
     input:
