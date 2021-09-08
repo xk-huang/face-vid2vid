@@ -9,6 +9,20 @@ from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
 
 
 class OcclAwareGenerator(nn.Module):
+    """
+    Occlusion-aware generator
+    inputs:
+        features: (n, c, d, h, w)
+        source_keypoint: (n, num_kp, 3)
+        target_keypoint: (n, num_kp, 3)
+        source_rot: (n, 3, 3)
+        target_rot: (n, 3, 3)
+        flow_3d_mask: (n, num_kp + 1, d, h, w), softmax
+        feature_2d_mask: (n, 1, h , w), sigmoid
+    outputs:
+        rgb: (n, 3, h, w) re-scale to (0, 1) after tanh (-1, 1)
+    """
+
     def __init__(self, depth=16, num_features_ch=32, num_res_blocks=6, num_up_blocks=2, num_kp=20, block_expansion=64, max_features=1024, sn=False) -> None:
         super(OcclAwareGenerator, self).__init__()
 

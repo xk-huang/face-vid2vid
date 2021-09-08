@@ -40,6 +40,8 @@ class ApearanceEncoder(nn.Module):
             res_blocks.append(ResBlock(block_expansion, use_3d=True))
         self.res_blocks = nn.Sequential(*res_blocks)
 
+        self.in_features = in_features
+
     def forward(self, x):
         out = self.conv1(x)
         out = self.norm1(out)

@@ -37,10 +37,10 @@ def kp2gaussian(kp, spatial_size, kp_varirance=0.01):
 def make_coordinate_grid(spatial_size, dtype):
     """
     input:
-        spatial_size: 2d or 3d
+        spatial_size: (h, w) or (d, h, w), 2d or 3d
         dtype
     output:
-        *spatial_size, 3
+        grid: (h, w, 2) or (d, h, w, 3), shape (*spatial_size, 3), range (-1, 1) (for convenience)
     """
     spatial_size = [
         None, *spatial_size] if len(spatial_size) == 2 else spatial_size
@@ -375,50 +375,6 @@ def get_face_keypoint(kp, rot, trans, exp):
     return out
 
 
-class Vgg19(torch.nn.Module):
-    """
-    Vgg19 network for perceptual loss. See Sec 3.3.
-    """
-
-    def __init__(self, requires_grad=False):
-        super(Vgg19, self).__init__()
-        vgg_pretrained_features = models.vgg19(pretrained=True).features
-        self.slice1 = torch.nn.Sequential()
-        self.slice2 = torch.nn.Sequential()
-        self.slice3 = torch.nn.Sequential()
-        self.slice4 = torch.nn.Sequential()
-        self.slice5 = torch.nn.Sequential()
-        for x in range(2):
-            self.slice1.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(2, 7):
-            self.slice2.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(7, 12):
-            self.slice3.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(12, 21):
-            self.slice4.add_module(str(x), vgg_pretrained_features[x])
-        for x in range(21, 30):
-            self.slice5.add_module(str(x), vgg_pretrained_features[x])
-
-        self.mean = torch.nn.Parameter(data=torch.Tensor(np.array([0.485, 0.456, 0.406]).reshape((1, 3, 1, 1))),
-                                       requires_grad=False)
-        self.std = torch.nn.Parameter(data=torch.Tensor(np.array([0.229, 0.224, 0.225]).reshape((1, 3, 1, 1))),
-                                      requires_grad=False)
-
-        if not requires_grad:
-            for param in self.parameters():
-                param.requires_grad = False
-
-    def forward(self, X):
-        X = (X - self.mean) / self.std
-        h_relu1 = self.slice1(X)
-        h_relu2 = self.slice2(h_relu1)
-        h_relu3 = self.slice3(h_relu2)
-        h_relu4 = self.slice4(h_relu3)
-        h_relu5 = self.slice5(h_relu4)
-        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
-        return out
-
-
 class ImagePyramide(torch.nn.Module):
     """
     Create image pyramide for computing pyramide perceptual loss. See Sec 3.3
@@ -454,7 +410,7 @@ class Transform:
         if ('sigma_tps' in kwargs) and ('points_tps' in kwargs):
             self.tps = True
             self.control_points = make_coordinate_grid(
-                (kwargs['points_tps'], kwargs['points_tps']), type=noise.type())
+                (kwargs['points_tps'], kwargs['points_tps']), dtype=noise.type())
             self.control_points = self.control_points.unsqueeze(0)
             self.control_params = torch.normal(mean=0,
                                                std=kwargs['sigma_tps'] * torch.ones([bs, 1, kwargs['points_tps'] ** 2]))
@@ -463,31 +419,41 @@ class Transform:
 
     def transform_frame(self, frame):
         grid = make_coordinate_grid(
-            frame.shape[2:], type=frame.type()).unsqueeze(0)
+            frame.shape[2:], dtype=frame.type()).unsqueeze(0)
         grid = grid.view(1, frame.shape[2] * frame.shape[3], 2)
         grid = self.warp_coordinates(grid).view(
             self.bs, frame.shape[2], frame.shape[3], 2)
         return F.grid_sample(frame, grid, padding_mode="reflection")
 
     def warp_coordinates(self, coordinates):
+        """
+        inputs:
+            coord: (1, h*w, 2)
+        outputs:
+            transformed coords: (batch_size, h*w, 2)
+        """
         theta = self.theta.type(coordinates.type())
         theta = theta.unsqueeze(1)
+        # resize vector to (row, 1) for matmul
         transformed = torch.matmul(
             theta[:, :, :, :2], coordinates.unsqueeze(-1)) + theta[:, :, :, 2:]
-        transformed = transformed.squeeze(-1)
+        transformed = transformed.squeeze(-1)  # (bs, h*w, 2)
 
         if self.tps:
             control_points = self.control_points.type(coordinates.type())
             control_params = self.control_params.type(coordinates.type())
+            # distance for every pair of pixel (bs, h*w, num_ctrl*num_ctrl, 2)
             distances = coordinates.view(
                 coordinates.shape[0], -1, 1, 2) - control_points.view(1, 1, -1, 2)
+            # (bs, h*w, num_ctrl*num_ctrl)
             distances = torch.abs(distances).sum(-1)
 
             result = distances ** 2
             result = result * torch.log(distances + 1e-6)
             result = result * control_params
-            result = result.sum(dim=2).view(self.bs, coordinates.shape[1], 1)
-            transformed = transformed + result
+            result = result.sum(dim=2).view(
+                self.bs, coordinates.shape[1], 1)  # (bs, h*w, 1)
+            transformed = transformed + result  # (bs, h*w, 2)
 
         return transformed
 
@@ -497,6 +463,7 @@ class Transform:
                       coordinates, create_graph=True)
         grad_y = grad(new_coordinates[..., 1].sum(),
                       coordinates, create_graph=True)
+        # jacobian (bs, h*w, 1, 2)
         jacobian = torch.cat(
             [grad_x[0].unsqueeze(-2), grad_y[0].unsqueeze(-2)], dim=-2)
         return jacobian

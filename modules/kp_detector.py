@@ -51,7 +51,8 @@ class CanonicalKPDetector(nn.Module):
         grid = make_coordinate_grid(
             shape[2:], dtype=heatmap.type()).unsqueeze_(0).unsqueeze_(0)
         print(f"[test] grid shape {grid.shape}")
-        keypoint = (heatmap * grid).sum(dim=tuple(range(2, len(grid.shape))))
+        keypoint = (
+            heatmap * grid).sum(dim=tuple(range(2, len(grid.shape) - 1)))
 
         return keypoint
 

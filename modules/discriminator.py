@@ -37,6 +37,11 @@ class DownBlock2d(nn.Module):
 class Discriminator(nn.Module):
     """
     Discriminator similar to Pix2Pix
+    input:
+        x: (n, c, h, w), range from 0 - 1, re-scaled after tanh
+    outputs:
+        feature_maps: list of intermediate features [(n, c_i, h_i, w_i) for i in this_list]
+        predition_map: (n, 1, h_I, w_I)
     """
 
     def __init__(self, num_channels=3, block_expansion=64, num_blocks=4, max_features=512,
@@ -80,6 +85,14 @@ class Discriminator(nn.Module):
 class MultiScaleDiscriminator(nn.Module):
     """
     Multi-scale (scale) discriminator
+    inputs:
+        x: (n, c, h, w)
+    outputs:
+        out_dict: {
+            "feature_map_[scale]": feature_maps: list [(n, c_i, h_i, w_i) for i in this_list]
+            "prediction_map_[scale]": prediction_map: (n, 1, h_I, w_I)
+            for [scale] in [scales]
+        }
     """
 
     def __init__(self, scales=(), **kwargs):
@@ -91,7 +104,12 @@ class MultiScaleDiscriminator(nn.Module):
         self.discs = nn.ModuleDict(discs)
 
     def forward(self, x, kp=None):
+        if kp is not None:
+            raise NotImplementedError
         out_dict = {}
+        # import pdb
+        # pdb.set_trace()
+
         for scale, disc in self.discs.items():
             scale = str(scale).replace('-', '.')
             key = 'prediction_' + scale

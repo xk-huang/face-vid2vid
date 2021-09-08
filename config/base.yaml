@@ -3,14 +3,14 @@ model_params:
     num_kp: 5
     # estimate_jacobian: True
     num_in_channels: 3
-    depth: 3
+    depth: 8
     temperature: 0.1
     block_expansion: 4
     max_features: 1024
     scale_factor: 0.5
     num_blocks: 2
   appearance_encoder_params:
-    depth: 3
+    depth: 8
     in_features: 3
     num_res_blocks: 3
     num_down_blocks: 2
@@ -20,19 +20,19 @@ model_params:
     num_kp: 5
     num_rot_bins: 66
     half_range: 99
-    scale_factor: 0.5
+    scale_factor: 1
   occl_estimator_params:
     compressed_in_features: 5
-    block_expansion: 4
+    block_expansion: 16
     num_blocks: 2
-    num_features_ch: 4
+    num_features_ch: 32
     max_features: 1024
     num_kp: 5
     depth: 8
     use_skip: False
   generator_params:
     depth: 8
-    num_features_ch: 4
+    num_features_ch: 32
     num_res_blocks: 2
     num_up_blocks: 2
     num_kp: 5
@@ -46,3 +46,21 @@ model_params:
     num_blocks: 1
     num_channels: 3
     sn: True
+
+train_params:
+  perceptual_loss_scales: [1]
+  loss_weights:
+    perceptual: [0.03125, 0.0625, 0.125, 0.25, 1.0]
+    face_perceptual: 0.0
+    feature_matching: [10, 10, 10, 10]
+    # All losses balance
+    perceptual_loss_weight: 10
+    gan_loss_weight: 1
+    equivariance_loss_weight: 20
+    keypoint_prior_loss_weight: 10
+    head_pose_loss_weight: 20
+    deformation_prior_loss_weight: 5
+  transform_params:
+    sigma_affine: 0.05
+    sigma_tps: 0.005
+    points_tps: 5

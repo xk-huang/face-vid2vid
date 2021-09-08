@@ -9,8 +9,8 @@ from modules.occlusion_estimator import OcclusionEstimator
 
 class TestOcclEst(SetupTestCase):
     def test_occl_est(self):
-        n, num_kp = 2, 5
         config = self.config['model_params']['occl_estimator_params']
+        n, num_kp = 2, config['num_kp']
 
         net = OcclusionEstimator(**config)
 
