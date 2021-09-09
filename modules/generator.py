@@ -61,11 +61,11 @@ class OcclAwareGenerator(nn.Module):
         # grids (n, num_kp + 1, d, h, w, 3)
         grids = get_multi_sample_grid(
             features, source_keypoint, target_keypoint, source_rot, target_rot)
-        grids = grids.permute(0, 1, 5, 2, 3, 4)
+        grids = grids.permute(0, 1, 5, 2, 3, 4)  # (n, num_kp + 1, 3, d, h, w)
         # flow_3d_mask (n, num_kp + 1, d, h, w)
-        flow_3d_mask = flow_3d_mask.unsqueeze(2)
+        flow_3d_mask = flow_3d_mask.unsqueeze(2)  # (n, num_kp + 1, 1, d, h, w)
         grids = (grids * flow_3d_mask).sum(dim=1)  # (n, 3, d, h, w)
-        grids = grids.permute(0, 2, 3, 4, 1)
+        grids = grids.permute(0, 2, 3, 4, 1)  # (n, d, h, w, 3)
 
         warped_features = F.grid_sample(features, grids, align_corners=True)
         warped_features = warped_features.view(

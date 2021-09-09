@@ -378,6 +378,12 @@ def get_face_keypoint(kp, rot, trans, exp):
 class ImagePyramide(torch.nn.Module):
     """
     Create image pyramide for computing pyramide perceptual loss. See Sec 3.3
+    inputs:
+        x: (n, c, h, w)
+    outputs:
+        out_dict {
+            'prediction_{scale}': x_down (n, c, h_d, w_d) for scale in scales
+        }
     """
 
     def __init__(self, scales, num_channels):

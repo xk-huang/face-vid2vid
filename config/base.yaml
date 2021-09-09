@@ -64,3 +64,6 @@ train_params:
     sigma_affine: 0.05
     sigma_tps: 0.005
     points_tps: 5
+  keypoint_prior:
+    depth_prior: 0.33
+    mutual_distance_prior: 0.1

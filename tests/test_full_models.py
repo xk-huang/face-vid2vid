@@ -12,7 +12,7 @@ from modules.kp_detector import CanonicalKPDetector
 from modules.generator import OcclAwareGenerator
 from modules.occlusion_estimator import OcclusionEstimator
 from modules.discriminator import MultiScaleDiscriminator
-from modules.model import GeneratorFullModel
+from modules.model import GeneratorFullModel, DiscriminatorFullModel
 from typing import Dict
 
 
@@ -29,13 +29,23 @@ class TestGenFull(SetupTestCase):
             **model_config['disciminator_params'])
 
         gen_full_model = GeneratorFullModel(
-            app_net, kp_net, hpe_net, occ_net, gen_net, disc_net, train_config)
+            app_net, kp_net, hpe_net, occ_net, gen_net, disc_net, train_config
+        )
+        disc_full_model = DiscriminatorFullModel(
+            app_net, kp_net, hpe_net, occ_net, gen_net, disc_net, train_config
+        )
 
         h, w = 64, 64
         data = {
             'source': torch.empty(1, 3, h, w),
             'driving': torch.empty(1, 3, h, w)
         }
-        loss_dict, out_dict = gen_full_model(data)
+        rot_gt = {
+            'source': torch.empty(1, 3),
+            'driving': torch.empty(1, 3)
+        }
+        loss_dict, out_dict = gen_full_model(data, rot_gt=rot_gt)
+        disc_gan_loss = disc_full_model(data, out_dict['rgb'])
+
         import pdb
         pdb.set_trace()

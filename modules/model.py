@@ -121,16 +121,21 @@ class GeneratorFullModel(nn.Module):
             raise NotImplementedError
             self.face_vgg = Vgg19()
 
-    def forward(self, x):
+    def forward(self, x, rot_gt=None):
         """
         generator full pass
         inputs:
-            dict: {
+            x dict: {
                 "source": (1, c, h, w)
                 "driving": (1, c, h, w)
             }
+            rot_gt: (optional) {
+                "source": (n, 3)
+                "driving": (n, 3)
+            }
         outpus:
-            disc_maps: (n, 1, h_d, w_d)
+            loss_values_dict
+            out_dict
 
         losses:
             perceptual loss (10)
@@ -149,7 +154,7 @@ class GeneratorFullModel(nn.Module):
         """
         can_kp_source_dict = self.kp_extractor(x['source'])
         can_kp_driving_dict = self.kp_extractor(x['driving'])
-        """        
+        """
         - out: dict{
             "keypoint": kp: (n, num_kp, 3)
             (optional) "jacobian": jacobian: (n, num_kp, 2, 2) or (n, num_kp, 3, 3)
@@ -223,18 +228,31 @@ class GeneratorFullModel(nn.Module):
 
         pyramide_real = self.pyramid(x['driving'])
         pyramide_fake = self.pyramid(fake)
+        """
+        inputs:
+            x: (n, c, h, w)
+        outputs:
+            out_dict {
+                'prediction_{scale}': x_down (n, c, h_d, w_d) for scale in scales
+            }
+        """
         out_dict = {
             'rgb': fake,  # gan, perceptual
             'kp_source': kp_source,  # equivariance loss?
             'kp_driving': kp_driving,  # equivariance loss?
             'rot_source': hpe_source_dict['rot']['eulers'],  # head pose loss
             'rot_driving': hpe_driving_dict['rot']['eulers'],  # head pose loss
+            'trans_source': hpe_driving_dict['trans'],
+            'trans_driving': hpe_driving_dict['trans'],
             'deform_source': hpe_source_dict['exp'],
-            'deform_driving': hpe_driving_dict['exp']
+            'deform_driving': hpe_driving_dict['exp'],
+            'flow_3d_mask': occ_field_dict['flow_3d_mask'],
+            'feature_2d_mask': occ_field_dict['feature_2d_mask']
         }
         # loss part
         loss_values_dict = {}
 
+        # [Loss] perceptual loss
         if sum(self.loss_weights['perceptual']) > 0:
             value_total = 0
             for scale in self.perceptual_loss_scales:
@@ -243,12 +261,14 @@ class GeneratorFullModel(nn.Module):
 
                 for i, weight in enumerate(self.loss_weights['perceptual']):
                     value = torch.abs(x_vgg[i] - y_vgg[i].detach()).mean()
-                    value_total += self.loss_weights['perceptual'][i] * value
+                    # value_total += self.loss_weights['perceptual'][i] * value
+                    value_total += weight * value
             loss_values_dict['perceptual_loss'] = value_total
 
         if self.loss_weights['face_perceptual'] > 0:
             raise NotImplementedError
 
+        # [Loss] gan loss
         if self.loss_weights['gan_loss_weight'] > 0:
             disc_maps_fake = self.discriminator(pyramide_fake)
             disc_maps_real = self.discriminator(pyramide_real)
@@ -258,7 +278,7 @@ class GeneratorFullModel(nn.Module):
                 key = f"prediction_map_{scale}"
                 value = ((1 - disc_maps_fake[key]) ** 2).mean()
                 value_total += self.loss_weights['gan_loss_weight'] * value
-            loss_values_dict['gan_loss'] = value_total
+            loss_values_dict['gen_gan_loss'] = value_total
 
             if sum(self.loss_weights['feature_matching']) > 0:
                 value_total = 0
@@ -269,8 +289,9 @@ class GeneratorFullModel(nn.Module):
                         if self.loss_weights['feature_matching'][i] > 0:
                             value = torch.abs(a - b).mean()
                             value_total += self.loss_weights['feature_matching'][i] * value
-                    loss_values_dict['feature_matching_loss'] = value_total
+                loss_values_dict['feature_matching_loss'] = value_total
 
+        # [Loss] equivariance loss
         if self.loss_weights['equivariance_loss_weight'] > 0:
             transform = Transform(x['driving'].shape[0],
                                   **self.train_params['transform_params'])
@@ -286,10 +307,85 @@ class GeneratorFullModel(nn.Module):
                     kp_driving[..., :2] - transform.warp_coordinates(transformed_2d_kp)).mean()
                 loss_values_dict['equivariance_loss'] = self.loss_weights['equivariance_loss_weight'] * value
 
-            # [NOTE] what about jacobian?
+        # [NOTE] what about jacobian?
+
+        # [Loss] keypoint prior loss
+        if self.loss_weights['keypoint_prior_loss_weight'] > 0:
+            mutual_distance_prior = self.train_params['keypoint_prior']['mutual_distance_prior']
+            depth_prior = self.train_params['keypoint_prior']['depth_prior']
+            kp_distance_source = torch.cdist(kp_source, kp_source)
+            kp_distance_driving = torch.cdist(kp_driving, kp_driving)
+            mean_depth_source = torch.mean(kp_source[..., -1], dim=-1)
+            mean_depth_driving = torch.mean(kp_driving[..., -1], dim=-1)
+
+            kp_dist_loss = sum(
+                [torch.clamp(mutual_distance_prior - kp_distance, 0).sum(dim=(-1, -2)).mean()
+                 for kp_distance in (kp_distance_source, kp_distance_driving)]
+            ) / 2.0
+            depth_loss = sum(
+                [torch.abs(depth_prior - mean_depth).mean()
+                 for mean_depth in (mean_depth_source, mean_depth_driving)]
+            ) / 2.0
+
+            loss_values_dict['keypoint_prior_loss'] = self.loss_weights['keypoint_prior_loss_weight'] * (
+                kp_dist_loss + depth_loss)
+
+        # [Loss] Head pose loss
+        if self.loss_weights['head_pose_loss_weight'] > 0:
+            if rot_gt is not None:
+                loss_values_dict['head_pose_loss'] = self.loss_weights['head_pose_loss_weight'] * (
+                    torch.mean(
+                        torch.abs(hpe_source_dict['rot']['eulers'] - rot_gt['source']), dim=0).sum() +
+                    torch.mean(
+                        torch.abs(hpe_driving_dict['rot']['eulers'] - rot_gt['driving']), dim=0).sum()
+                ) / 2.0
+
+        # [Loss] deformation prior loss
+        if self.loss_weights['deformation_prior_loss_weight'] > 0:
+            # (n, num_kp, 3)
+            loss_values_dict['deformation_prior_loss'] = self.loss_weights['deformation_prior_loss_weight'] * (
+                hpe_source_dict['exp'].abs().mean() + hpe_driving_dict['exp'].abs().mean()) / 2.0
+
         return loss_values_dict, out_dict
 
 
 class DiscriminatorFullModel(nn.Module):
-    def __init__(self, appearance_encoder, kp_extractor, hpe_estimator, occlusion_estimator, generator, train_params):
+    def __init__(self, appearance_encoder: ApearanceEncoder, kp_extractor: CanonicalKPDetector, hpe_estimator: HeadPoseExpEstimator, occlusion_estimator: OcclusionEstimator, generator: OcclAwareGenerator, discriminator: MultiScaleDiscriminator, train_params: Dict):
         super(DiscriminatorFullModel, self).__init__()
+        self.appearence_encoder = appearance_encoder
+        self.kp_extractor = kp_extractor
+        self.hpe_estimator = hpe_estimator
+        self.occlusion_estimator = occlusion_estimator
+        self.generator = generator
+        self.discriminator = discriminator
+
+        self.perceptual_loss_scales = train_params['perceptual_loss_scales']
+        self.disc_scales = self.discriminator.scales
+
+        assert(self.perceptual_loss_scales <= self.disc_scales)
+
+        self.pyramid = ImagePyramide(
+            self.disc_scales, appearance_encoder.in_features)
+
+        self.loss_weights = train_params['loss_weights']
+        self.train_params = train_params
+
+    def forward(self, x, fake):
+        pyramide_real = self.pyramid(x['driving'])
+        pyramide_fake = self.pyramid(fake.detach())
+
+        disc_maps_real = self.discriminator(pyramide_real)
+        disc_maps_fake = self.discriminator(pyramide_fake)
+
+        loss_values_dict = {}
+
+        # [Loss] gan loss
+        value_total = 0
+        for scale in self.disc_scales:
+            key = f'prediction_map_{scale}'
+            value = ((1 - disc_maps_fake[key]) ** 2 +
+                     disc_maps_real[key] ** 2) / 2.0
+            value_total += self.loss_weights['gan_loss_weight'] * value.mean()
+        loss_values_dict['disc_gan_loss'] = value_total
+
+        return loss_values_dict
