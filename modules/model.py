@@ -265,7 +265,7 @@ class GeneratorFullModel(nn.Module):
                     value_total += weight * value
             loss_values_dict['perceptual_loss'] = value_total
 
-        if self.loss_weights['face_perceptual'] > 0:
+        if sum(self.loss_weights['face_perceptual']) > 0:
             raise NotImplementedError
 
         # [Loss] gan loss

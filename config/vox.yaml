@@ -1,41 +1,41 @@
 model_params:
   kp_detector_params:
-    num_kp: 20
+    num_kp: 10
     # estimate_jacobian: True
     num_in_channels: 3
-    depth: 16
+    depth: 8
     temperature: 0.1
     block_expansion: 32
     max_features: 1024
     scale_factor: 0.5
     num_blocks: 5
   appearance_encoder_params:
-    depth: 16
+    depth: 8
     in_features: 3
-    num_res_blocks: 6
+    num_res_blocks: 4
     num_down_blocks: 2
     block_expansion: 32
   hpe_estimator_params:
     pretrained: False
-    num_kp: 20
+    num_kp: 10
     num_rot_bins: 66
     half_range: 99
     scale_factor: 0.5
   occl_estimator_params:
     compressed_in_features: 5
     block_expansion: 32
-    num_blocks: 5
+    num_blocks: 2
     num_features_ch: 32
     max_features: 1024
-    num_kp: 20
-    depth: 16
+    num_kp: 10
+    depth: 8
     use_skip: False
   generator_params:
-    depth: 16
+    depth: 8
     num_features_ch: 32
-    num_res_blocks: 6
+    num_res_blocks: 4
     num_up_blocks: 2
-    num_kp: 20
+    num_kp: 10
     block_expansion: 64
     max_features: 1024
     sn: True
@@ -79,8 +79,8 @@ train_params:
   lr_occlusion_estimator: 0.0002
   lr_generator: 0.0002
   lr_discriminator: 0.0002
-  batch_size: 90
-  num_workers: 6
+  batch_size: 8
+  num_workers: 10
   checkpoint_freq: 10
 
   # hopenet
