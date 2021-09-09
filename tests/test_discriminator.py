@@ -49,7 +49,7 @@ class TestDisc(SetupTestCase):
         # pdb.set_trace()
         # trues = [torch.allclose(features, volumes[:, i], atol=1e-4)
         #          for i in range(num_kp + 1)]
-        # print('[test]', trues)
+        # # print('[test]', trues)
         # self.assertTrue(
         #     all(trues)
         # )

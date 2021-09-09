@@ -14,5 +14,5 @@ class TestAppEncoder(SetupTestCase):
 
         expected_out_shape = (2, app_config['block_expansion'], app_config['depth'], data.shape[-2] //
                               (2 ** app_config['num_down_blocks']), data.shape[-1] // (2 ** app_config['num_down_blocks']))
-        print(f"[test] {out.shape} {expected_out_shape}")
+        # print(f"[test] {out.shape} {expected_out_shape}")
         self.assertTrue(out.shape == expected_out_shape)

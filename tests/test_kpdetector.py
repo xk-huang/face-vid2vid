@@ -17,7 +17,7 @@ class TestCanonicalKPDetector(SetupTestCase):
 
         out = ckp_net(data)
 
-        print("[test]", out['keypoint'].shape, (
+        # print("[test]", out['keypoint'].shape, (
             data.shape[0], config['model_params']['kp_detector_params']['num_kp'], 3))
         self.assertTrue(out['keypoint'].shape == (
             data.shape[0], config['model_params']['kp_detector_params']['num_kp'], 3))

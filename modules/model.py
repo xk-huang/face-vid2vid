@@ -30,7 +30,7 @@ class Vgg19(torch.nn.Module):
     def __init__(self, requires_grad=False):
         super(Vgg19, self).__init__()
         print("[WARNING] not use imagenet pre-train weights of VGG19")
-        vgg_pretrained_features = models.vgg19(pretrained=False).features
+        vgg_pretrained_features = models.vgg19(pretrained=True).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
         self.slice3 = torch.nn.Sequential()
@@ -117,7 +117,7 @@ class GeneratorFullModel(nn.Module):
         if sum(self.loss_weights['perceptual']) != 0:
             self.vgg = Vgg19()
 
-        if self.loss_weights['face_perceptual'] != 0:
+        if sum(self.loss_weights['face_perceptual']) != 0:
             raise NotImplementedError
             self.face_vgg = Vgg19()
 
@@ -333,6 +333,9 @@ class GeneratorFullModel(nn.Module):
         # [Loss] Head pose loss
         if self.loss_weights['head_pose_loss_weight'] > 0:
             if rot_gt is not None:
+                # import pdb
+                # pdb.set_trace()
+
                 loss_values_dict['head_pose_loss'] = self.loss_weights['head_pose_loss_weight'] * (
                     torch.mean(
                         torch.abs(hpe_source_dict['rot']['eulers'] - rot_gt['source']), dim=0).sum() +

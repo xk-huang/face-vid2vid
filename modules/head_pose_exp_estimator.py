@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 from torchvision.models import resnet50
 import numpy as np
+from modules.hopenet.utils import softmax_temperature
 
 
 class HeadPoseExpEstimator(nn.Module):
@@ -27,11 +28,12 @@ class HeadPoseExpEstimator(nn.Module):
     def __init__(self, pretrained=False, num_kp=5, num_rot_bins=66, half_range=99, scale_factor=1):
         super(HeadPoseExpEstimator, self).__init__()
 
-        self.register_buffer('idx_tensor', torch.arange(num_rot_bins).float())
+        self.register_buffer('idx_tensor', torch.arange(
+            num_rot_bins).view(1, -1, 1).float())
         self.angle_names = ('yaw', 'pitch', 'roll')
         self.num_rot_bins = num_rot_bins
         self.half_range = half_range
-        self.bin_size = half_range // num_rot_bins
+        self.bin_size = half_range * 2 // num_rot_bins
 
         self.net = resnet50(pretrained=pretrained)
         in_ch = self.net.fc.weight.shape[-1]
@@ -57,7 +59,9 @@ class HeadPoseExpEstimator(nn.Module):
     #         for k, v in rot_logits.items()
     #     }
     def get_eulers(self, rot_logits):
-        return torch.sum(rot_logits * self.idx_tensor, -1) * self.bin_size - self.half_range
+        rot_logits = rot_logits.permute(0, 2, 1)
+        normalized_rot_logtis = softmax_temperature(rot_logits, 1)
+        return torch.sum(normalized_rot_logtis * self.idx_tensor, 1) * self.bin_size - self.half_range
 
     def get_rot_mat(self, rot_eulers):
         # inputs: yaw - Y, pitch - X, roll - Z

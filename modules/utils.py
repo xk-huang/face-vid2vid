@@ -1,3 +1,4 @@
+from types import coroutine
 from sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d, SynchronizedBatchNorm3d as BatchNorm3d
 from torch import nn
 from torchvision import models
@@ -16,7 +17,7 @@ def kp2gaussian(kp, spatial_size, kp_varirance=0.01):
     output:
         out (n, num_kp, d, h, w) 
     """
-    grid = make_coordinate_grid(spatial_size, kp.type())
+    grid = make_coordinate_grid(spatial_size, kp.type()).to(device=kp.device)
     num_leading_dims = len(kp.shape) - 1
     grid_dims = (1,) * num_leading_dims + grid.shape
     grid = grid.view(*grid_dims)
@@ -44,7 +45,7 @@ def make_coordinate_grid(spatial_size, dtype):
     """
     spatial_size = [
         None, *spatial_size] if len(spatial_size) == 2 else spatial_size
-    print(f"[test] coord spatial_size {spatial_size}")
+    # print(f"[test] coord spatial_size {spatial_size}")
     d, h, w = spatial_size
     x = torch.arange(w).type(dtype)
     y = torch.arange(h).type(dtype)
@@ -212,10 +213,10 @@ class UNetEncoder(nn.Module):
 
     def forward(self, x):
         outs = [x]
-        print("[test] x shape", x.shape)
+        # print("[test] x shape", x.shape)
         for down_block in self.down_blocks:
             outs.append(down_block(outs[-1]))
-            print("[test] down_block", outs[-1].shape)
+            # print("[test] down_block", outs[-1].shape)
         return outs
 
 
@@ -250,7 +251,7 @@ class UNetDecoder(nn.Module):
             if self.use_skip:
                 skip = x.pop()
                 out = torch.cat([out, skip], dim=1)
-            print("[test] up_block", out.shape)
+            # print("[test] up_block", out.shape)
         return out
 
 
@@ -340,7 +341,7 @@ def get_multi_sample_grid(features, source_keypoint, target_keypoint, source_rot
     n, num_kp, _ = source_keypoint.shape
     d, h, w = features.shape[-3:]
     identity_grid = make_coordinate_grid(
-        features.shape[-3:], features.type())  # d, h, w, 3
+        features.shape[-3:], features.type()).to(device=features.device)  # d, h, w, 3
     identity_grid = identity_grid.view(1, 1, *identity_grid.shape)
     source_keypoint = source_keypoint.view(n, num_kp, 1, 1, 1, 3)
     target_keypoint = target_keypoint.view(n, num_kp, 1, 1, 1, 3)
@@ -425,7 +426,7 @@ class Transform:
 
     def transform_frame(self, frame):
         grid = make_coordinate_grid(
-            frame.shape[2:], dtype=frame.type()).unsqueeze(0)
+            frame.shape[2:], dtype=frame.type()).unsqueeze(0).to(device=frame.device)
         grid = grid.view(1, frame.shape[2] * frame.shape[3], 2)
         grid = self.warp_coordinates(grid).view(
             self.bs, frame.shape[2], frame.shape[3], 2)
@@ -438,7 +439,8 @@ class Transform:
         outputs:
             transformed coords: (batch_size, h*w, 2)
         """
-        theta = self.theta.type(coordinates.type())
+        theta = self.theta.type(coordinates.type()).to(
+            device=coordinates.device)
         theta = theta.unsqueeze(1)
         # resize vector to (row, 1) for matmul
         transformed = torch.matmul(
@@ -446,8 +448,10 @@ class Transform:
         transformed = transformed.squeeze(-1)  # (bs, h*w, 2)
 
         if self.tps:
-            control_points = self.control_points.type(coordinates.type())
-            control_params = self.control_params.type(coordinates.type())
+            control_points = self.control_points.type(
+                coordinates.type()).to(device=coordinates.device)
+            control_params = self.control_params.type(
+                coordinates.type()).to(device=coordinates.device)
             # distance for every pair of pixel (bs, h*w, num_ctrl*num_ctrl, 2)
             distances = coordinates.view(
                 coordinates.shape[0], -1, 1, 2) - control_points.view(1, 1, -1, 2)

@@ -45,12 +45,12 @@ class CanonicalKPDetector(nn.Module):
 
     def gaussian2kp(self, heatmap):
         shape = heatmap.shape  # N,C,D,H,W
-        print(f"[test] heatmap shape {shape}")
+        # print(f"[test] heatmap shape {shape}")
 
         heatmap = heatmap.unsqueeze(-1)
         grid = make_coordinate_grid(
-            shape[2:], dtype=heatmap.type()).unsqueeze_(0).unsqueeze_(0)
-        print(f"[test] grid shape {grid.shape}")
+            shape[2:], dtype=heatmap.type()).unsqueeze_(0).unsqueeze_(0).to(device=heatmap.device)
+        # print(f"[test] grid shape {grid.shape}")
         keypoint = (
             heatmap * grid).sum(dim=tuple(range(2, len(grid.shape) - 1)))
 
@@ -58,7 +58,7 @@ class CanonicalKPDetector(nn.Module):
 
     def forward(self, x):
         if self.scale_factor != 1:
-            print(f"[test] scale {self.scale_factor}")
+            # print(f"[test] scale {self.scale_factor}")
             x = self.down(x)
 
         in_shape = x.shape

@@ -20,6 +20,7 @@ from modules import (
 )
 from .frames_dataset import FramesDataset
 from .__init__ import NAME_LIST
+import torchvision
 
 
 def train(config, appearance_encoder: ApearanceEncoder, hpe_estimator: HeadPoseExpEstimator, kp_detector: CanonicalKPDetector, occlusion_estimator: OcclusionEstimator, generator: OcclAwareGenerator, discriminator: MultiScaleDiscriminator, checkpoint, log_dir: str, dataset: FramesDataset, num_workers: int, use_cuda: bool):
@@ -74,14 +75,17 @@ def train(config, appearance_encoder: ApearanceEncoder, hpe_estimator: HeadPoseE
         optimizer_generator,
         optimizer_discriminator
     ]
+    print("[Finished init Optimizers]")
 
     # load checkpoint
     if checkpoint is not None:
         start_epoch = Logger.load_cpk(
             *model_list, *optimizer_list
         )
+        print("[Finished load weights]")
     else:
         start_epoch = 0
+        print("[No need to load weights]")
 
     # optimizer scheduler
     scheduler_appearance_encoder = MultiStepLR(
@@ -104,6 +108,19 @@ def train(config, appearance_encoder: ApearanceEncoder, hpe_estimator: HeadPoseE
         scheduler_generator,
         scheduler_discriminator
     ]
+    print("[Finished init scheduler]")
+
+    # hopenet, psudo-head-rot-label
+    from modules.hopenet.hopenet import Hopenet
+    from modules.hopenet.utils import softmax_temperature
+    hopenet = Hopenet(torchvision.models.resnet.Bottleneck,
+                      [3, 4, 6, 3], 66)
+    hopenet_state_dict = torch.load(train_params['hopenet_weight_path'])
+    hopenet.load_state_dict(hopenet_state_dict)
+    hopenet = hopenet.cuda()
+    idx_tensor = [idx for idx in range(66)]
+    idx_tensor = torch.FloatTensor(idx_tensor).view(1, -1, 1).cuda()
+    print("[Finished loading hopenet]")
 
     # dataloader
     if 'num_repeats' in train_params or train['num_repeats'] > 1:
@@ -111,24 +128,42 @@ def train(config, appearance_encoder: ApearanceEncoder, hpe_estimator: HeadPoseE
 
     dataloader = DataLoader(
         dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=num_workers, drop_last=True)
+    print("[Finished creating dataloader]")
 
     # train full path for gen & disc
     generator_full = GeneratorFullModel(
-        appearance_encoder, kp_detector, hpe_estimator, occlusion_estimator, generator, discriminator)
+        appearance_encoder, kp_detector, hpe_estimator, occlusion_estimator, generator, discriminator, train_params)
+    if use_cuda and sum(generator_full.loss_weights['perceptual']) != 0:
+        generator_full.vgg = generator_full.vgg.cuda()
+    # if use_cuda and sum(generator_full.loss_weights['face_perceptual']) != 0:
+    #     generator_full.face_vgg = generator_full.face_vgg.cuda()
     discriminator_full = DiscriminatorFullModel(
-        appearance_encoder, kp_detector, hpe_estimator, occlusion_estimator, generator, discriminator)
-
+        appearance_encoder, kp_detector, hpe_estimator, occlusion_estimator, generator, discriminator, train_params)
+    generator_full = generator_full.cuda()
+    discriminator_full = discriminator_full.cuda()
     if use_cuda:
         generator_full = DataParallelWithCallback(
             generator_full, device_ids=list(range(torch.cuda.device_count())))
         discriminator_full = DataParallelWithCallback(
             discriminator_full, device_ids=list(range(torch.cuda.device_count())))
+        print("[Finished moving to GPUs]")
 
+    print("[Start training]")
     # train
-    with Logger(log_dir=log_dir, checkpoint_freq=100, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
+    with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
+                x = {k: v.cuda()
+                     for k, v in x.items() if isinstance(v, Tensor)}
+
                 # y ...
+                with torch.no_grad():
+                    y = {}
+                    for key in ('source', 'driving'):
+                        y[key] = torch.stack(hopenet(x[key]), -1)
+                        y[key] = softmax_temperature(y[key], 1)
+                        y[key] = torch.sum(y[key] * idx_tensor, dim=1) * 3 - 99
+
                 loss_dict, out_dict = generator_full(x, y)
                 loss_values = [
                     val.mean() for val in loss_dict.values()
@@ -150,6 +185,7 @@ def train(config, appearance_encoder: ApearanceEncoder, hpe_estimator: HeadPoseE
                     loss_values: Tensor = [
                         val.mean() for val in loss_disc_dict.values()
                     ]
+                    loss = sum(loss_values)
 
                     optimizer_discriminator.zero_grad()
                     loss.backward()
@@ -169,8 +205,8 @@ def train(config, appearance_encoder: ApearanceEncoder, hpe_estimator: HeadPoseE
 
             logger.log_epoch(
                 epoch,
-                {k: v for k, v in zip(NAME_LIST, model_list)}.update(
-                    {k: v for k, v in zip(NAME_LIST, optimizer_list)}),
+                {**{k: v for k, v in zip(NAME_LIST, model_list)}, **{
+                    f"optimizer_{k}": v for k, v in zip(NAME_LIST, optimizer_list)}},
                 inp=x,
-                out=out_dict['rgb']
+                out=out_dict
             )

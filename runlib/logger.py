@@ -47,6 +47,7 @@ class Logger:
             self.zfill_num) + ") " + loss_string
 
         print(loss_string, file=self.log_file)
+        # print(loss_string)
         self.loss_list = []
         self.log_file.flush()
 
@@ -190,7 +191,8 @@ class Visualizer:
 
         # Source image with keypoints
         source = source.data.cpu()
-        kp_source = out['kp_source']['value'].data.cpu().numpy()
+        # kp_source = out['kp_source']['value'].data.cpu().numpy()
+        kp_source = out['kp_source'][..., :2].data.cpu().numpy()
         source = np.transpose(source, [0, 2, 3, 1])
         images.append((source, kp_source))
 
@@ -198,11 +200,13 @@ class Visualizer:
         if 'transformed_frame' in out:
             transformed = out['transformed_frame'].data.cpu().numpy()
             transformed = np.transpose(transformed, [0, 2, 3, 1])
-            transformed_kp = out['transformed_kp']['value'].data.cpu().numpy()
+            # transformed_kp = out['transformed_kp']['value'].data.cpu().numpy()
+            transformed_kp = out['transformed_kp'][..., :2].data.cpu().numpy()
             images.append((transformed, transformed_kp))
 
         # Driving image with keypoints
-        kp_driving = out['kp_driving']['value'].data.cpu().numpy()
+        # kp_driving = out['kp_driving']['value'].data.cpu().numpy()
+        kp_driving = out['kp_driving'][..., :2].data.cpu().numpy()
         driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
         images.append((driving, kp_driving))
@@ -214,7 +218,8 @@ class Visualizer:
             images.append(deformed)
 
         # Result with and without keypoints
-        prediction = out['prediction'].data.cpu().numpy()
+        # prediction = out['prediction'].data.cpu().numpy()
+        prediction = out['rgb'].data.cpu().numpy()
         prediction = np.transpose(prediction, [0, 2, 3, 1])
         if 'kp_norm' in out:
             kp_norm = out['kp_norm']['value'].data.cpu().numpy()
@@ -222,8 +227,15 @@ class Visualizer:
         images.append(prediction)
 
         # Occlusion map
-        if 'occlusion_map' in out:
-            occlusion_map = out['occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
+        # if 'occlusion_map' in out:
+        #     occlusion_map = out['occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
+        #     occlusion_map = F.interpolate(
+        #         occlusion_map, size=source.shape[1:3]).numpy()
+        #     occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
+        #     images.append(occlusion_map)
+        if 'feature_2d_mask' in out:
+            occlusion_map = out['feature_2d_mask'].data.cpu().repeat(
+                1, 3, 1, 1)
             occlusion_map = F.interpolate(
                 occlusion_map, size=source.shape[1:3]).numpy()
             occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])

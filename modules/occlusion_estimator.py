@@ -70,7 +70,7 @@ class OcclusionEstimator(nn.Module):
 
         warped_features = warped_features.reshape(n, -1, d, h, w)
 
-        print("[test] start warping")
+        # print("[test] start warping")
         out_features = self.encoder(warped_features)
         out_features = self.decoder(out_features)
         cat_features = torch.cat([warped_features, out_features], dim=1)
@@ -99,7 +99,7 @@ class OcclusionEstimator(nn.Module):
             source_keypoint, spatial_size, self.kp_variance)
         heatmap = heatmap_target - heatmap_source
         # (n, num_kp, d, h, w)
-        zeros = torch.zeros(n, 1, *spatial_size)
+        zeros = torch.zeros(n, 1, *spatial_size).to(device=heatmap.device)
         heatmap = torch.cat([heatmap, zeros], dim=1)
         heatmap = heatmap.unsqueeze(2)
         return heatmap
