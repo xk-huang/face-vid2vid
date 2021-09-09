@@ -73,7 +73,7 @@ class GeneratorFullModel(nn.Module):
     inputs:
         x: (n, c, h, w)
     outpus:
-        disc_maps: (n, 1, h_d, w_d)
+        loss_dict, out_dict
 
     losses:
         perceptual loss (10)
